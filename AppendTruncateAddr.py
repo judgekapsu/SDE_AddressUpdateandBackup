@@ -281,8 +281,8 @@ def appendTruncate(stage_gdb, prod_gdb, stage_table_name, prod_table_name, max_r
             print("Failed to truncate the production table after several attempts.")
     else:
         print("Failed to disconnect users after several attempts.")
-prod_egdb=r'C:\KaitlynMaps\AddrUpdate\AddrUpdate\PostgreSQL-apnsgis4-montgomery(sde).sde'
-### Needs to be moved at the end
-# Example usage
+
+
+#execute the functions
 appendTruncate(local_fgdb, prod_egdb, StageFeatureClass, ProdFeatureClass1, 7, TruncOrTreat(prod_egdb, ProdFeatureClass1))
 copy_geodatabase(local_fgdb, safe_fgdb)
