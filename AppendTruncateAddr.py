@@ -1,7 +1,9 @@
 import arcpy
 import os
 from dotenv import load_dotenv
-from dotenv import dotenv_values
+from datetime import datetime
+import csv
+LOG_FILE = r'\\APNSDS4\Projects\MontCo_E911\Scripts\automation_status.csv'
 
 load_dotenv(dotenv_path="C:\\Python\\testingArcpy\\SDE_ScriptRPC\\.env",verbose=True)
 # print("dotenv_values:", dotenv_values("C:/Python/testingArcpy/SDE_ScriptRPC/.env"))
@@ -282,7 +284,38 @@ def appendTruncate(stage_gdb, prod_gdb, stage_table_name, prod_table_name, max_r
     else:
         print("Failed to disconnect users after several attempts.")
 
+def log_script_status(script_name, status):
+    """
+    Appends execution status to a shared CSV.
+    Creates the file with headers if it doesn't exist.
+    """
+    fieldnames = ['date', 'script_name', 'status']
+    today = datetime.now().strftime('%Y-%m-%d')
+    
+    file_exists = os.path.isfile(LOG_FILE)
+    
+    try:
+        # Use 'a' for append mode. 
+        with open(LOG_FILE, mode='a', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            if not file_exists:
+                writer.writeheader()
+            writer.writerow({
+                'date': today,
+                'script_name': script_name,
+                'status': status.upper()
+            })
+    except Exception as e:
+        print(f"Failed to log status for {script_name}: {e}")
 
+
+if __name__ == "__main__":
+    try:
+        appendTruncate(local_fgdb, prod_egdb, StageFeatureClass, ProdFeatureClass1, 7, TruncOrTreat(prod_egdb, ProdFeatureClass1))
+        copy_geodatabase(local_fgdb, safe_fgdb)
+        # ...
+        log_script_status("nightly_import", "PASS")
+    except Exception as e:
+        log_script_status("nightly_import", "FAIL")
+        print(f"Script failed: {e}")
 #execute the functions
-appendTruncate(local_fgdb, prod_egdb, StageFeatureClass, ProdFeatureClass1, 7, TruncOrTreat(prod_egdb, ProdFeatureClass1))
-copy_geodatabase(local_fgdb, safe_fgdb)
