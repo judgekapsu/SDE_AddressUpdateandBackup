@@ -1,27 +1,38 @@
-import arcpy
 import os
 from dotenv import load_dotenv
 from dotenv import dotenv_values
+env="\\\\APNSDS4\Projects\MontCo_E911\Scripts\SDE_ScriptRPC\.env"
+print(env)
+load_dotenv(dotenv_path=env,verbose=True)
+#print("dotenv_values:", dotenv_values("C:/Python/testingArcpy/SDE_ScriptRPC/.env"))
 
-load_dotenv(dotenv_path="C:\\Python\\testingArcpy\\SDE_ScriptRPC\\.env",verbose=True)
-# print("dotenv_values:", dotenv_values("C:/Python/testingArcpy/SDE_ScriptRPC/.env"))
+# Check if paths exist
+def check_path_exists(path, path_name="Path"):
+    """Print whether a path exists"""
+    if os.path.exists(path):
+        print(f"✓ {path_name} exists: {path}")
+        return True
+    else:
+        print(f"✗ {path_name} does NOT exist: {path}")
+        return False
 
+if not check_path_exists(env, ".env file"):
+    print ("EXITING NOW\n\nGOODBYE :'(")
+    exit(1)
+
+import arcpy
 errorlogname = os.getenv("ERROR_LOG_NAME")
 prod_egdb    = os.getenv("PROD_EGDB")
 ProdFeatureClass1 = os.getenv("PROD_FEATURE_CLASS_1")
 local_fgdb   = os.getenv("LOCAL_FGDB")
 StageFeatureClass = os.getenv("STAGE_FEATURE_CLASS")
-xl_Templet   = os.getenv("XL_TEMPLET")
-monthly_gdb  = os.getenv("MONTHLY_GDB")
-monthly_fc   = os.getenv("MONTHLY_FC")
+xl_Templet   = os.getenv("XL_TEMPLET")#NOT BEING USED
+monthly_gdb  = os.getenv("MONTHLY_GDB")#NOT BEING USED
+monthly_fc   = os.getenv("MONTHLY_FC")#NOT BEING USED
 safe_fgdb    = os.getenv("SAFE_FGDB")
 df=xl_Templet
 fieldName = "label"
-# Quick verification
-print(local_fgdb)
-print(os.getenv("local_fgdb"))
-for k in ["prod_egdb", "ProdFeatureClass1", "local_fgdb"]:
-    print(f"{k} => {os.getenv(k)}")
+
 ##Define Functions
 def logError(e):
     """

@@ -24,23 +24,36 @@ Install `python-dotenv` into the ArcGIS Pro environment if needed:
 
 ## Configuration (.env)
 
-Create a `.env` file in `SDE_ScriptRPC/` (same folder as the script) with entries like:
+### Setup Instructions
 
-```
-ERROR_LOG_NAME=C:\Logs\SDE_Addr_Update.log
-PROD_EGDB=C:\Path\To\ProdConnection.sde
-PROD_FEATURE_CLASS_1=schema.AddressPoints
-LOCAL_FGDB=C:\Path\To\Staging.gdb
-STAGE_FEATURE_CLASS=AddressPoints
-XL_TEMPLET=C:\Path\To\Template.xlsx
-MONTHLY_GDB=C:\Backups\AddrUpdate\2026-01\TIPS_Update.gdb
-MONTHLY_FC=AddressPoints
-```
+1. Copy `template.env` to `.env` in the `SDE_ScriptRPC/` folder (same folder as the script):
+   ```powershell
+   Copy-Item template.env .env
+   ```
 
-Notes:
-- `PROD_EGDB` should point to your .sde connection file with sufficient privileges to disconnect users and edit.
-- `LOCAL_FGDB` is your staging file geodatabase path.
-- Update paths to match your environment.
+2. Open `.env` in your text editor and fill in the paths for your environment
+
+3. Each variable is documented in `template.env` with examples and descriptions
+
+### Environment Variables
+
+| Variable | Purpose | Notes |
+|----------|---------|-------|
+| `ERROR_LOG_NAME` | Log file path for errors | Directory or file path where logs are written |
+| `PROD_EGDB` | Production SDE connection file | Must have privileges to disconnect users and edit |
+| `PROD_FEATURE_CLASS_1` | Production feature class | Format: `schema.sde.FeatureClassName` |
+| `LOCAL_FGDB` | Staging file geodatabase | Contains the staged data to append |
+| `STAGE_FEATURE_CLASS` | Staging feature class name | Table within LOCAL_FGDB to append from |
+| `XL_TEMPLET` | Excel template path | Optional, may be used for reporting |
+| `MONTHLY_GDB` | Monthly backup directory | Optional, for archival purposes |
+| `MONTHLY_FC` | Monthly shapefile name | Optional, for archival purposes |
+| `SAFE_FGDB` | Safe copy/backup geodatabase | Where LOCAL_FGDB is copied for safety |
+
+### Important Notes
+
+- Use **`template.env`** as a reference—do not commit your actual `.env` file to version control
+- All paths should be UNC paths (`\\\\server\share`) or local absolute paths (e.g., `C:\path\to\gdb`)
+- Ensure the account running the script has read/write access to all specified paths
 
 ## Running
 
