@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 from dotenv import dotenv_values
-env="\\\\APNSDS4\Projects\MontCo_E911\Scripts\SDE_ScriptRPC\.env"
+env="\\\\APNSDS4\Projects\MontCo_E911\Scripts\SDE_ScriptAddresses\.env"
 print(env)
 load_dotenv(dotenv_path=env,verbose=True)
 #print("dotenv_values:", dotenv_values("C:/Python/testingArcpy/SDE_ScriptRPC/.env"))
