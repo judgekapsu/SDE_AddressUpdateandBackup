@@ -5,9 +5,8 @@ env="\\\\APNSDS4\Projects\MontCo_E911\Scripts\SDE_ScriptRPC\.env"
 print(env)
 load_dotenv(dotenv_path=env,verbose=True)
 #print("dotenv_values:", dotenv_values("C:/Python/testingArcpy/SDE_ScriptRPC/.env"))
-from datetime import datetime
+import datetime
 import csv
-LOG_FILE = r'\\APNSDS4\Projects\MontCo_E911\Scripts\automation_status.csv'
 
 # Check if paths exist
 def check_path_exists(path, path_name="Path"):
@@ -35,6 +34,7 @@ monthly_fc   = os.getenv("MONTHLY_FC")#NOT BEING USED
 safe_fgdb    = os.getenv("SAFE_FGDB")
 df=xl_Templet
 fieldName = "label"
+email_log = os.getenv("email_log")
 
 ##Define Functions
 def logError(e):
@@ -302,13 +302,13 @@ def log_script_status(script_name, status):
     Creates the file with headers if it doesn't exist.
     """
     fieldnames = ['date', 'script_name', 'status']
-    today = datetime.now().strftime('%Y-%m-%d')
+    today = datetime.datetime.now().strftime('%Y-%m-%d')
     
-    file_exists = os.path.isfile(LOG_FILE)
+    file_exists = os.path.isfile(email_log)
     
     try:
         # Use 'a' for append mode. 
-        with open(LOG_FILE, mode='a', newline='', encoding='utf-8') as f:
+        with open(email_log, mode='a', newline='', encoding='utf-8') as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             if not file_exists:
                 writer.writeheader()
