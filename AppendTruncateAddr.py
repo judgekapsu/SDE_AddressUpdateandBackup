@@ -326,8 +326,8 @@ if __name__ == "__main__":
         appendTruncate(local_fgdb, prod_egdb, StageFeatureClass, ProdFeatureClass1, 7, TruncOrTreat(prod_egdb, ProdFeatureClass1))
         copy_geodatabase(local_fgdb, safe_fgdb)
         # ...
-        log_script_status("nightly_import", "PASS")
+        log_script_status("Address_SDE", "PASS")
     except Exception as e:
-        log_script_status("nightly_import", "FAIL")
+        log_script_status("Address_SDE", "FAIL")
         print(f"Script failed: {e}")
 #execute the functions
