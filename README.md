@@ -1,10 +1,11 @@
 # SDE Address Update and Backup
 
-Python/ArcPy utilities to manage address point updates between a staging file geodatabase (FGDB) and a production enterprise geodatabase (EGDB). The main flow disconnects users, optionally truncates the production feature class, then appends from staging with retry logic. Includes a helper to copy/replace a geodatabase for backups.
+Python/ArcPy utilities to manage address point updates between a local file geodatabase (FGDB) and a production enterprise geodatabase (EGDB). The current workflow creates a temporary staging feature class from local address points, disconnects users, optionally truncates production, then appends with retry logic. Includes a helper to copy/replace a geodatabase for backups.
 
 ## Key Scripts
 
-- `SDE_ScriptRPC/AppendTruncateAddr.py`: Orchestrates disconnect → optional truncate → append. Provides utilities:
+- `SDE_ScriptAddresses/AppendTruncateAddr.py`: Orchestrates backup copy → temp stage creation → disconnect → optional truncate → append. Provides utilities:
+  - `makeStage(local_fgdb, localFeatureClass, stage_FeatureClass)`: Builds a temporary staging feature class from `local_FEATURE_CLASS` with a filter of `structype<>9000`.
   - `TruncOrTreat(prod_egdb, prod_table_name)`: Returns True if table has more than 1 row (used to decide truncation).
   - `appendTruncate(stage_gdb, prod_gdb, stage_table_name, prod_table_name, max_retries, truncate)`
   - `copy_geodatabase(source_gdb, destination_gdb)`: Copies a GDB to a destination, deleting any existing target first.
@@ -26,7 +27,7 @@ Install `python-dotenv` into the ArcGIS Pro environment if needed:
 
 ### Setup Instructions
 
-1. Copy `template.env` to `.env` in the `SDE_ScriptRPC/` folder (same folder as the script):
+1. Copy `template.env` to `.env` in the `SDE_ScriptAddresses/` folder (same folder as the script):
    ```powershell
    Copy-Item template.env .env
    ```
@@ -43,6 +44,7 @@ Install `python-dotenv` into the ArcGIS Pro environment if needed:
 | `PROD_EGDB` | Production SDE connection file | Must have privileges to disconnect users and edit |
 | `PROD_FEATURE_CLASS_1` | Production feature class | Format: `schema.sde.FeatureClassName` |
 | `LOCAL_FGDB` | Staging file geodatabase | Contains the staged data to append |
+| `local_FEATURE_CLASS` | Source local address points feature class | Input class used to build temp stage (filtered where `structype<>9000`) |
 | `STAGE_FEATURE_CLASS` | Staging feature class name | Table within LOCAL_FGDB to append from |
 | `XL_TEMPLET` | Excel template path | Optional, may be used for reporting |
 | `MONTHLY_GDB` | Monthly backup directory | Optional, for archival purposes |
@@ -60,10 +62,12 @@ Install `python-dotenv` into the ArcGIS Pro environment if needed:
 Run the main script with ArcGIS Pro's Python:
 
 ```powershell
-"C:/Program Files/ArcGIS/Pro/bin/Python/envs/arcgispro-py3/python.exe" C:/Python/testingArcpy/SDE_ScriptRPC/AppendTruncateAddr.py
+"C:/Program Files/ArcGIS/Pro/bin/Python/envs/arcgispro-py3/python.exe" "\\APNSDS4\Projects\MontCo_E911\Scripts\SDE_ScriptAddresses\AppendTruncateAddr.py"
 ```
 
 What it does:
+- Copies `LOCAL_FGDB` to `SAFE_FGDB` as a safety backup.
+- Builds/refreshes temp staging data by creating `STAGE_FEATURE_CLASS` from `local_FEATURE_CLASS`.
 - Checks `TruncOrTreat` to decide if truncate is needed.
 - Disconnects all users from `PROD_EGDB`.
 - Optionally truncates the production feature class.
@@ -75,7 +79,7 @@ What it does:
 Use the helper to copy and replace a GDB (parent folders are created if missing):
 
 ```python
-from SDE_ScriptRPC.AppendTruncateAddr import copy_geodatabase
+from SDE_ScriptAddresses.AppendTruncateAddr import copy_geodatabase
 
 # Example: back up the staging FGDB before append
 copy_geodatabase(os.getenv("LOCAL_FGDB"), r"C:\Backups\AddrUpdate\AddressPoints.gdb")
