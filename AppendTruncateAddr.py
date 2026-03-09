@@ -8,6 +8,7 @@ load_dotenv(dotenv_path=env,verbose=True)
 import datetime
 import csv
 
+
 # Check if paths exist
 def check_path_exists(path, path_name="Path"):
     """Print whether a path exists"""
@@ -27,7 +28,7 @@ errorlogname = os.getenv("ERROR_LOG_NAME")
 prod_egdb    = os.getenv("PROD_EGDB")
 ProdFeatureClass1 = os.getenv("PROD_FEATURE_CLASS_1")
 local_fgdb   = os.getenv("LOCAL_FGDB")
-StageFeatureClass = os.getenv("STAGE_FEATURE_CLASS")
+localFeatureClass = os.getenv("local_FEATURE_CLASS")
 xl_Templet   = os.getenv("XL_TEMPLET")#NOT BEING USED
 monthly_gdb  = os.getenv("MONTHLY_GDB")#NOT BEING USED
 monthly_fc   = os.getenv("MONTHLY_FC")#NOT BEING USED
@@ -35,6 +36,7 @@ safe_fgdb    = os.getenv("SAFE_FGDB")
 df=xl_Templet
 fieldName = "label"
 email_log = os.getenv("email_log")
+stage_FeatureClass = os.getenv("STAGE_FEATURE_CLASS")
 
 ##Define Functions
 def logError(e):
@@ -58,6 +60,37 @@ def logError(e):
         logFile.write('\n')
         logFile.write('Error: {}\n'.format(e))
 
+def makeStage(local_fgdb, localFeatureClass, stage_FeatureClass):
+    """
+    Function to create a staging feature class by copying a local feature class.
+
+    Parameters
+    ----------
+    local_fgdb : str
+        Path to the local file geodatabase.
+    localFeatureClass : strA
+        Name of the local feature class to copy.
+    stage_gdb : str
+        Path to the staging geodatabase.
+    stage_FeatureClass : str
+        Name of the staging feature class to create.
+
+    Returns
+    -------
+    None
+    """
+    try:
+        if arcpy.Exists(os.path.join(local_fgdb, stage_FeatureClass)):
+            arcpy.management.Delete(os.path.join(local_fgdb, stage_FeatureClass))
+        else:
+            print(f"Staging feature class does not exist, proceeding to create: {os.path.join(local_fgdb, stage_FeatureClass)}")
+        layer_name = f"{stage_FeatureClass}_lyr"
+        arcpy.management.MakeFeatureLayer(os.path.join(local_fgdb, localFeatureClass), layer_name, where_clause="(structype<>9000)")
+        arcpy.management.CopyFeatures(layer_name, os.path.join(local_fgdb, stage_FeatureClass))
+        print(f"Staging feature class created: {os.path.join(local_fgdb, stage_FeatureClass)}")
+    except Exception as e:
+        logError(e)
+        print(f"Failed to create staging feature class: {e}")
 
 def tableRowCounts(gdb, table_name, field_name):
     """
@@ -323,8 +356,9 @@ def log_script_status(script_name, status):
 
 if __name__ == "__main__":
     try:
-        appendTruncate(local_fgdb, prod_egdb, StageFeatureClass, ProdFeatureClass1, 7, TruncOrTreat(prod_egdb, ProdFeatureClass1))
         copy_geodatabase(local_fgdb, safe_fgdb)
+        makeStage(local_fgdb, localFeatureClass, stage_FeatureClass)
+        appendTruncate(local_fgdb, prod_egdb, stage_FeatureClass, ProdFeatureClass1, 7, TruncOrTreat(prod_egdb, ProdFeatureClass1))
         # ...
         log_script_status("Address_SDE", "PASS")
     except Exception as e:
