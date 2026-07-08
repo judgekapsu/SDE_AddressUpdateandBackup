@@ -1,12 +1,16 @@
 import os
-from dotenv import load_dotenv
-from dotenv import dotenv_values
-env="\\\\APNSDS4\Projects\MontCo_E911\Scripts\SDE_ScriptAddresses\.env"
-print(env)
-load_dotenv(dotenv_path=env,verbose=True)
-#print("dotenv_values:", dotenv_values("C:/Python/testingArcpy/SDE_ScriptRPC/.env"))
 import datetime
 import csv
+
+from dotenv import load_dotenv
+
+import arcpy
+
+
+script_dir = os.path.dirname(os.path.abspath(__file__))
+env = os.path.join(script_dir, ".env")
+print(f"Loading environment from: {env}")
+load_dotenv(dotenv_path=env, verbose=True)
 
 
 # Check if paths exist
@@ -23,20 +27,44 @@ if not check_path_exists(env, ".env file"):
     print ("EXITING NOW\n\nGOODBYE :'(")
     exit(1)
 
-import arcpy
 errorlogname = os.getenv("ERROR_LOG_NAME")
-prod_egdb    = os.getenv("PROD_EGDB")
+prod_egdb = os.getenv("PROD_EGDB")
 ProdFeatureClass1 = os.getenv("PROD_FEATURE_CLASS_1")
-local_fgdb   = os.getenv("LOCAL_FGDB")
-localFeatureClass = os.getenv("local_FEATURE_CLASS")
-xl_Templet   = os.getenv("XL_TEMPLET")#NOT BEING USED
-monthly_gdb  = os.getenv("MONTHLY_GDB")#NOT BEING USED
-monthly_fc   = os.getenv("MONTHLY_FC")#NOT BEING USED
-safe_fgdb    = os.getenv("SAFE_FGDB")
-df=xl_Templet
+local_fgdb = os.getenv("LOCAL_FGDB")
+localFeatureClass = os.getenv("LOCAL_FEATURE_CLASS") or os.getenv("local_FEATURE_CLASS")
+xl_Templet = os.getenv("XL_TEMPLET")  # NOT BEING USED
+monthly_gdb = os.getenv("MONTHLY_GDB")  # NOT BEING USED
+monthly_fc = os.getenv("MONTHLY_FC")  # NOT BEING USED
+safe_fgdb = os.getenv("SAFE_FGDB")
+df = xl_Templet
 fieldName = "label"
-email_log = os.getenv("email_log")
+email_log = os.getenv("EMAIL_LOG") or os.getenv("email_log") or os.path.join(script_dir, "script_status.csv")
 stage_FeatureClass = os.getenv("STAGE_FEATURE_CLASS")
+address_where_clause = os.getenv("ADDRESS_WHERE_CLAUSE") or os.getenv("WHERE_CLAUSE") or "(structype<>9000)"
+
+centerline_local_feature_class = os.getenv("CENTERLINE_LOCAL_FEATURE_CLASS", "")
+centerline_stage_feature_class = os.getenv("CENTERLINE_STAGE_FEATURE_CLASS", "")
+centerline_prod_feature_class = os.getenv("CENTERLINE_PROD_FEATURE_CLASS", "")
+centerline_where_clause = os.getenv("CENTERLINE_WHERE_CLAUSE", "")
+
+
+def parse_feature_class_list(value):
+    """Split a semicolon- or comma-delimited list of feature classes into a clean list."""
+    if not value:
+        return []
+    if isinstance(value, (list, tuple)):
+        return [item.strip() for item in value if item and str(item).strip()]
+
+    for separator in [";", ","]:
+        if separator in value:
+            return [item.strip() for item in value.split(separator) if item and item.strip()]
+
+    return [value.strip()]
+
+
+centerline_prod_feature_classes = parse_feature_class_list(
+    os.getenv("CENTERLINE_PROD_FEATURE_CLASSES", "") or centerline_prod_feature_class
+)
 
 ##Define Functions
 def logError(e):
@@ -60,7 +88,7 @@ def logError(e):
         logFile.write('\n')
         logFile.write('Error: {}\n'.format(e))
 
-def makeStage(local_fgdb, localFeatureClass, stage_FeatureClass):
+def makeStage(local_fgdb, localFeatureClass, stage_FeatureClass, where_clause="(structype<>9000)"):
     """
     Function to create a staging feature class by copying a local feature class.
 
@@ -68,29 +96,66 @@ def makeStage(local_fgdb, localFeatureClass, stage_FeatureClass):
     ----------
     local_fgdb : str
         Path to the local file geodatabase.
-    localFeatureClass : strA
+    localFeatureClass : str
         Name of the local feature class to copy.
-    stage_gdb : str
-        Path to the staging geodatabase.
     stage_FeatureClass : str
         Name of the staging feature class to create.
+    where_clause : str, optional
+        SQL where clause to filter the source layer before copying.
 
     Returns
     -------
-    None
+    str
+        The name of the staging feature class that was created.
     """
     try:
-        if arcpy.Exists(os.path.join(local_fgdb, stage_FeatureClass)):
-            arcpy.management.Delete(os.path.join(local_fgdb, stage_FeatureClass))
-        else:
-            print(f"Staging feature class does not exist, proceeding to create: {os.path.join(local_fgdb, stage_FeatureClass)}")
-        layer_name = f"{stage_FeatureClass}_lyr"
-        arcpy.management.MakeFeatureLayer(os.path.join(local_fgdb, localFeatureClass), layer_name, where_clause="(structype<>9000)")
-        arcpy.management.CopyFeatures(layer_name, os.path.join(local_fgdb, stage_FeatureClass))
-        print(f"Staging feature class created: {os.path.join(local_fgdb, stage_FeatureClass)}")
+        source_path = os.path.join(local_fgdb, localFeatureClass)
+        if not arcpy.Exists(source_path):
+            raise FileNotFoundError(f"Source feature class not found: {source_path}")
+
+        candidate_names = []
+        if stage_FeatureClass:
+            candidate_names.append(stage_FeatureClass)
+        candidate_names.extend([
+            f"{localFeatureClass}_STAGE",
+            f"{localFeatureClass}_TMP",
+            f"{os.path.basename(localFeatureClass)}_STAGE",
+            f"{os.path.basename(localFeatureClass)}_TMP",
+            "TEMP_STAGING",
+        ])
+
+        seen = set()
+        ordered_candidates = []
+        for name in candidate_names:
+            if name and name not in seen:
+                seen.add(name)
+                ordered_candidates.append(name)
+
+        last_error = None
+        for candidate_name in ordered_candidates:
+            stage_path = os.path.join(local_fgdb, candidate_name)
+            try:
+                if arcpy.Exists(stage_path):
+                    print(f"Removing existing staging feature class: {stage_path}")
+                    arcpy.management.Delete(stage_path)
+
+                layer_name = f"{candidate_name}_lyr"
+                if where_clause:
+                    arcpy.management.MakeFeatureLayer(source_path, layer_name, where_clause=where_clause)
+                else:
+                    arcpy.management.MakeFeatureLayer(source_path, layer_name)
+                arcpy.management.CopyFeatures(layer_name, stage_path)
+                print(f"Staging feature class created: {stage_path}")
+                return candidate_name
+            except Exception as exc:
+                last_error = exc
+                print(f"Failed with staging name {candidate_name}: {exc}")
+
+        raise RuntimeError(f"Unable to create a staging feature class. Last error: {last_error}")
     except Exception as e:
         logError(e)
         print(f"Failed to create staging feature class: {e}")
+        raise
 
 def tableRowCounts(gdb, table_name, field_name):
     """
@@ -336,11 +401,10 @@ def log_script_status(script_name, status):
     """
     fieldnames = ['date', 'script_name', 'status']
     today = datetime.datetime.now().strftime('%Y-%m-%d')
-    
+
     file_exists = os.path.isfile(email_log)
-    
+
     try:
-        # Use 'a' for append mode. 
         with open(email_log, mode='a', newline='', encoding='utf-8') as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             if not file_exists:
@@ -354,14 +418,46 @@ def log_script_status(script_name, status):
         print(f"Failed to log status for {script_name}: {e}")
 
 
+def run_dataset_workflow(dataset_label, source_fc_name, stage_fc_name, prod_fc_name, where_clause=None):
+    """Run the staging and append workflow for one dataset."""
+    if not source_fc_name or not stage_fc_name or not prod_fc_name:
+        print(f"Skipping {dataset_label} workflow: missing configuration")
+        return
+
+    try:
+        actual_stage_name = makeStage(local_fgdb, source_fc_name, stage_fc_name, where_clause=where_clause)
+        appendTruncate(
+            local_fgdb,
+            prod_egdb,
+            actual_stage_name,
+            prod_fc_name,
+            7,
+            TruncOrTreat(prod_egdb, prod_fc_name),
+        )
+        log_script_status(f"{dataset_label}_SDE", "PASS")
+    except Exception as e:
+        log_script_status(f"{dataset_label}_SDE", "FAIL")
+        print(f"{dataset_label} workflow failed: {e}")
+
+
 if __name__ == "__main__":
     try:
         copy_geodatabase(local_fgdb, safe_fgdb)
-        makeStage(local_fgdb, localFeatureClass, stage_FeatureClass)
-        appendTruncate(local_fgdb, prod_egdb, stage_FeatureClass, ProdFeatureClass1, 7, TruncOrTreat(prod_egdb, ProdFeatureClass1))
-        # ...
-        log_script_status("Address_SDE", "PASS")
+        copy_geodatabase(prod_egdb, safe_fgdb)
+        run_dataset_workflow("Address", localFeatureClass, stage_FeatureClass, ProdFeatureClass1, address_where_clause)
+
+        if centerline_prod_feature_classes:
+            for index, prod_fc in enumerate(centerline_prod_feature_classes, start=1):
+                label = "Centerline" if index == 1 else f"Centerline_{index}"
+                run_dataset_workflow(
+                    label,
+                    centerline_local_feature_class,
+                    centerline_stage_feature_class,
+                    prod_fc,
+                    centerline_where_clause,
+                )
+        else:
+            print("No centerline production feature classes configured; skipping centerline workflow")
     except Exception as e:
-        log_script_status("Address_SDE", "FAIL")
+        log_script_status("SDE_UPDATE", "FAIL")
         print(f"Script failed: {e}")
-#execute the functions

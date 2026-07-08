@@ -4,9 +4,9 @@ Python/ArcPy utilities to manage address point updates between a local file geod
 
 ## Key Scripts
 
-- `SDE_ScriptAddresses/AppendTruncateAddr.py`: Orchestrates backup copy → temp stage creation → disconnect → optional truncate → append. Provides utilities:
-  - `makeStage(local_fgdb, localFeatureClass, stage_FeatureClass)`: Builds a temporary staging feature class from `local_FEATURE_CLASS` with a filter of `structype<>9000`.
-  - `TruncOrTreat(prod_egdb, prod_table_name)`: Returns True if table has more than 1 row (used to decide truncation).
+- `SDE_ScriptAddresses/AppendTruncateAddr.py`: Orchestrates backup copy → temp stage creation → disconnect → optional truncate → append for both address points and centerlines. Provides utilities:
+  - `makeStage(local_fgdb, localFeatureClass, stage_FeatureClass, where_clause="(structype<>9000)")`: Builds a temporary staging feature class from the configured source feature class.
+  - `TruncOrTreat(prod_egdb, prod_table_name)`: Returns True if the target table has more than 1 row (used to decide truncation).
   - `appendTruncate(stage_gdb, prod_gdb, stage_table_name, prod_table_name, max_retries, truncate)`
   - `copy_geodatabase(source_gdb, destination_gdb)`: Copies a GDB to a destination, deleting any existing target first.
   - `tableRowCounts(gdb, table_name, field_name)`: Quick counts per value.
@@ -46,6 +46,11 @@ Install `python-dotenv` into the ArcGIS Pro environment if needed:
 | `LOCAL_FGDB` | Staging file geodatabase | Contains the staged data to append |
 | `local_FEATURE_CLASS` | Source local address points feature class | Input class used to build temp stage (filtered where `structype<>9000`) |
 | `STAGE_FEATURE_CLASS` | Staging feature class name | Table within LOCAL_FGDB to append from |
+| `ADDRESS_WHERE_CLAUSE` | Optional address filter | Default is `(structype<>9000)` |
+| `CENTERLINE_LOCAL_FEATURE_CLASS` | Centerline source feature class | Feature class inside LOCAL_FGDB to stage from |
+| `CENTERLINE_STAGE_FEATURE_CLASS` | Centerline staging feature class | Table within LOCAL_FGDB to append from |
+| `CENTERLINE_PROD_FEATURE_CLASS` | Centerline production feature class | Format: `schema.sde.FeatureClassName` |
+| `CENTERLINE_WHERE_CLAUSE` | Optional centerline filter | Leave blank for no filter |
 | `XL_TEMPLET` | Excel template path | Optional, may be used for reporting |
 | `MONTHLY_GDB` | Monthly backup directory | Optional, for archival purposes |
 | `MONTHLY_FC` | Monthly shapefile name | Optional, for archival purposes |
@@ -67,11 +72,12 @@ Run the main script with ArcGIS Pro's Python:
 
 What it does:
 - Copies `LOCAL_FGDB` to `SAFE_FGDB` as a safety backup.
-- Builds/refreshes temp staging data by creating `STAGE_FEATURE_CLASS` from `local_FEATURE_CLASS`.
+- Builds/refreshes temp staging data by creating `STAGE_FEATURE_CLASS` from the address source feature class.
+- If centerline settings are present, it runs the same workflow for the centerline dataset as well.
 - Checks `TruncOrTreat` to decide if truncate is needed.
 - Disconnects all users from `PROD_EGDB`.
 - Optionally truncates the production feature class.
-- Appends features from `LOCAL_FGDB`:`STAGE_FEATURE_CLASS` into `PROD_EGDB`:`PROD_FEATURE_CLASS_1`.
+- Appends features from `LOCAL_FGDB` into production using the configured staging and production feature classes.
 - Retries each operation up to the configured attempts.
 
 ## Backing up a Geodatabase
